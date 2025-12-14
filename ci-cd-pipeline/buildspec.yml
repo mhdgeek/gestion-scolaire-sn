@@ -1,0 +1,19 @@
+version: 0.2
+phases:
+  pre_build:
+    commands:
+      - echo "Installation des dépendances du backend..."
+      - cd backend && npm ci
+  build:
+    commands:
+      - echo "Exécution des tests..."
+      - cd backend && npm test
+      - echo "Construction de l'image Docker du backend..."
+      - docker build -t backend-app:latest ./backend
+  post_build:
+    commands:
+      - echo "Build terminé à $(date)"
+artifacts:
+  files:
+    - '**/*'
+  discard-paths: no
