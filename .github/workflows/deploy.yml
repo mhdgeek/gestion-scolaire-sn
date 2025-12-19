@@ -31,20 +31,14 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
         
-    - name: 🐳 Build and push Docker image
+    - name: 🐳 Build, tag, and push image to Amazon ECR
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG: ${{ github.sha }}-$(date +%s)
+        # Utiliser SHA + timestamp pour être unique
+        IMAGE_TAG: ${{ github.sha }}-$(date +%Y%m%d-%H%M%S)
       run: |
-        # Setup Docker Buildx
-        docker buildx create --use || true
-        
-        # Build avec Buildx (méthode moderne)
-        docker buildx build \
-          --tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-          --platform linux/amd64 \
-          --push \
-          ./backend
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         
         echo "IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
         echo "VERSION_LABEL=$IMAGE_TAG" >> $GITHUB_ENV
@@ -80,5 +74,5 @@ jobs:
         
     - name: ✅ Verify deployment
       run: |
-        echo "✅ Déploiement réussi!"
-        echo "🌐 Vérifiez: https://us-east-1.console.aws.amazon.com/elasticbeanstalk"
+        echo "✅ Déploiement initié!"
+        echo "🌐 Surveillez: https://us-east-1.console.aws.amazon.com/elasticbeanstalk"
