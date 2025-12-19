@@ -5,8 +5,14 @@ WORKDIR /usr/src/app
 # Copy package files
 COPY package*.json ./
 
+# Install Python3 and build tools (required for some npm packages)
+RUN apk add --no-cache python3 make g++
+
 # Install dependencies
 RUN npm ci --only=production
+
+# Remove build tools to keep image small (optional)
+RUN apk del make g++
 
 # Copy app source
 COPY . .
@@ -18,7 +24,7 @@ RUN addgroup -g 1001 -S nodejs && \
 # Change to non-root user
 USER nodejs
 
-# Expose port (must match your server.js)
+# Expose port
 EXPOSE 8080
 
 # Health check
