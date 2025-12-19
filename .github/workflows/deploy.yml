@@ -140,3 +140,35 @@ jobs:
         echo "1. Check EB environment: https://us-east-1.console.aws.amazon.com/elasticbeanstalk"
         echo "2. Set environment variables in EB console"
         echo "3. Test your application URL"
+
+    - name: 🏗️ Vérifier/Créer l'environnement Elastic Beanstalk
+      run: |
+        echo "🔍 Vérification de l'environnement EB..."
+        
+        # Vérifier si l'environnement existe
+        if aws elasticbeanstalk describe-environments \
+          --application-name "${{ env.EB_APPLICATION }}" \
+          --environment-names "${{ env.EB_ENVIRONMENT }}" \
+          --region "${{ env.AWS_REGION }}" 2>/dev/null; then
+          echo "✅ Environnement existe déjà"
+        else
+          echo "🌱 Création de l'environnement..."
+          
+          # Créer l'environnement (version basique)
+          aws elasticbeanstalk create-environment \
+            --application-name "${{ env.EB_APPLICATION }}" \
+            --environment-name "${{ env.EB_ENVIRONMENT }}" \
+            --solution-stack-name "64bit Amazon Linux 2023 v4.0.9 running Docker" \
+            --option-settings \
+              '[
+                {"Namespace":"aws:elasticbeanstalk:environment","OptionName":"EnvironmentType","Value":"SingleInstance"},
+                {"Namespace":"aws:elasticbeanstalk:environment","OptionName":"ServiceRole","Value":"aws-elasticbeanstalk-service-role"}
+              ]' \
+            --region "${{ env.AWS_REGION }}"
+            
+          echo "⏱️  Attente de la création (première fois: 8-12 minutes)..."
+          # Attendre que l'environnement soit prêt
+          aws elasticbeanstalk wait environment-exists \
+            --environment-name "${{ env.EB_ENVIRONMENT }}" \
+            --region "${{ env.AWS_REGION }}"
+        fi
