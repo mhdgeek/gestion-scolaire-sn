@@ -1,0 +1,55 @@
+# .sre/slo-config.yaml
+version: '1.0'
+project: gestion-scolaire
+environment: production
+
+service_level_objectives:
+  availability:
+    description: "Disponibilité globale de l'application"
+    target: 0.999  # 99.9%
+    window: 28d    # Fenêtre de 28 jours
+    metric: "http_requests_total{status_code!~'5..'} / http_requests_total"
+    
+  latency:
+    description: "Latence du 95e percentile"
+    target: "0.5s"  # 500ms P95
+    window: 7d
+    metric: "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))"
+    
+  error_budget:
+    description: "Budget d'erreur mensuel"
+    total_requests_per_month: 1000000
+    allowed_errors: 1000  # 0.1% de 1M
+    current_usage: 0
+    
+alerting:
+  rules:
+    - name: "slo-availability-breach"
+      condition: "availability < 0.995"  # Alerte à 99.5%
+      severity: "critical"
+      channels: ["slack", "email"]
+      
+    - name: "high-latency"
+      condition: "latency_p95 > 1.0"  # > 1 seconde
+      severity: "warning"
+      channels: ["slack"]
+      
+    - name: "error-budget-burn-rate-high"
+      condition: "error_budget_burn_rate > 10"  # 10x trop rapide
+      severity: "critical"
+      channels: ["pagerduty"]
+
+dashboards:
+  - name: "slo-overview"
+    url: "https://us-east-1.console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=gestion-scolaire-slo"
+    
+  - name: "business-metrics"
+    metrics:
+      - "active_users"
+      - "requests_per_second"
+      - "conversion_rate"
+
+runbooks:
+  - "high-availability"
+  - "database-performance"
+  - "deployment-rollback"

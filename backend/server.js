@@ -48,3 +48,55 @@ app.use('/api/import', require('./routes/import'));
 
 // Servir les fichiers uploads
 app.use('/uploads', express.static('uploads'));
+// ========== SRE MONITORING ==========
+const { setupMetricsMiddleware, trackDBQuery } = require('./monitoring/slo-metrics');
+
+// Initialiser le monitoring
+setupMetricsMiddleware(app);
+
+// Exemple d'utilisation pour MongoDB
+app.get('/api/students', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const students = await Student.find();
+    trackDBQuery('students', 'find', startTime);
+    res.json(students);
+  } catch (error) {
+    trackDBQuery('students', 'find', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========== HEALTH CHECKS AVANCÉS ==========
+app.get('/health/detailed', async (req, res) => {
+  const checks = {
+    app: 'healthy',
+    database: 'unknown',
+    memory: process.memoryUsage(),
+    uptime: process.uptime()
+  };
+
+  // Vérifier MongoDB
+  try {
+    await mongoose.connection.db.admin().ping();
+    checks.database = 'healthy';
+  } catch (error) {
+    checks.database = 'unhealthy';
+  }
+
+  // Vérifier le disque
+  const disk = require('diskusage');
+  try {
+    const { free, total } = disk.checkSync('/');
+    checks.disk = {
+      free: Math.round(free / 1024 / 1024) + 'MB',
+      total: Math.round(total / 1024 / 1024) + 'MB',
+      usage: Math.round((1 - free / total) * 100) + '%'
+    };
+  } catch (error) {
+    checks.disk = 'error';
+  }
+
+  const status = checks.database === 'healthy' ? 200 : 503;
+  res.status(status).json(checks);
+});

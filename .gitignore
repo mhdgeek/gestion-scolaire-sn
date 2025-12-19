@@ -4,3 +4,52 @@ node_modules/
 npm-debug.log
 docker-compose.override.yml
 infrastructure-as-code/*.json # Exclut les fichiers de sortie CloudFormation
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
+
+# ==================== SRE EXCLUSIONS ====================
+# Fichiers temporaires de tests
+load-test-report-*.md
+results.json
+/tmp/
+
+# Fichiers de configuration sensibles (ne pas commit)
+*.env
+*.pem
+*.key
+
+# Logs locaux
+*.log
+logs/
+
+# Dossiers de cache
+.cache/
+node_modules/
+
+# Fichiers macOS
+.DS_Store
+
+# ==================== SRE EXCLUSIONS ====================
+# Fichiers temporaires de tests
+load-test-report-*.md
+results.json
+/tmp/
+
+# Fichiers de configuration sensibles (ne pas commit)
+*.env
+*.pem
+*.key
+
+# Logs locaux
+*.log
+logs/
+
+# Dossiers de cache
+.cache/
+node_modules/
+
+# Fichiers macOS
+.DS_Store

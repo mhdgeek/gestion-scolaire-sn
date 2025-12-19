@@ -1,0 +1,87 @@
+xname: Deploy to AWS
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: gestion-scolaire-backend
+  EKS_CLUSTER: gestion-scolaire-cluster  # Si vous utilisez EKS plus tard
+  EB_ENVIRONMENT: gestion-scolaire-docker-env
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Install backend dependencies
+      run: |
+        cd backend
+        npm ci
+        
+    - name: Run backend tests
+      run: |
+        cd backend
+        npm test
+        
+    - name: Build Docker image
+      run: |
+        docker build -t $ECR_REPOSITORY:latest ./backend
+        
+    - name: Test Docker image
+      run: |
+        docker run --rm $ECR_REPOSITORY:latest node --version
+
+  deploy-to-aws:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+      
+    - name: Build, tag, and push image to Amazon ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        # Garder aussi le tag latest
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
+    - name: Deploy to Elastic Beanstalk
+      uses: einaregilsson/beanstalk-deploy@v21
+      with:
+        aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        application_name: gestion-scolaire
+        environment_name: ${{ env.EB_ENVIRONMENT }}
+        region: ${{ env.AWS_REGION }}
+        version_label: ${{ github.sha }}
+        deployment_package: ./
+        use_existing_version_if_available: true
