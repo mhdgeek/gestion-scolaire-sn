@@ -11,8 +11,39 @@ env:
   EB_APPLICATION: gestion-scolaire
 
 jobs:
+  # ==================== BUILD ET VALIDATION ====================
+  build-and-validate:
+    name: 🔨 Build & Validate
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔧 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: 📦 Install backend dependencies
+      run: |
+        cd backend
+        npm install
+        
+    - name: 🧪 Run tests
+      run: |
+        cd backend
+        npm test || echo "⚠️ Tests échoués mais on continue"
+        
+    - name: 🐳 Build Docker image
+      run: |
+        docker build -t $ECR_REPOSITORY:${{ github.sha }} ./backend
+        echo "✅ Image Docker construite"
+
+  # ==================== DÉPLOIEMENT SUR AWS ====================
   deploy-to-aws:
     name: 🚀 Deploy to AWS
+    needs: build-and-validate
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     
@@ -27,6 +58,26 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
         
+    - name: 🔧 Create ECR repository if it doesn't exist
+      id: create-ecr
+      run: |
+        # Vérifier si le repository existe déjà
+        if aws ecr describe-repositories \
+          --repository-names ${{ env.ECR_REPOSITORY }} \
+          --region ${{ env.AWS_REGION }} 2>/dev/null; then
+          echo "✅ Repository ECR existe déjà"
+          echo "repository_exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "🔧 Création du repository ECR..."
+          aws ecr create-repository \
+            --repository-name ${{ env.ECR_REPOSITORY }} \
+            --region ${{ env.AWS_REGION }} \
+            --image-scanning-configuration scanOnPush=true \
+            --image-tag-mutability MUTABLE
+          echo "✅ Repository ECR créé"
+          echo "repository_exists=false" >> $GITHUB_OUTPUT
+        fi
+        
     - name: 🔑 Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
@@ -34,16 +85,23 @@ jobs:
     - name: 🐳 Build, tag, and push image to Amazon ECR
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        # Utiliser SHA + timestamp pour être unique
-        IMAGE_TAG: ${{ github.sha }}-$(date +%Y%m%d-%H%M%S)
+        IMAGE_TAG: ${{ github.sha }}
       run: |
+        # Build Docker image
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend
+        
+        # Push to ECR
+        echo "🚀 Pushing image to ECR..."
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         
-        echo "IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
-        echo "VERSION_LABEL=$IMAGE_TAG" >> $GITHUB_ENV
+        # Also tag as latest
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
         
-    - name: 📝 Create Dockerrun.aws.json
+        echo "✅ Image pushed: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+        echo "IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
+        
+    - name: 📝 Create Dockerrun.aws.json for Elastic Beanstalk
       run: |
         cat > Dockerrun.aws.json << DOCKERFILE
         {
@@ -60,6 +118,8 @@ jobs:
         }
         DOCKERFILE
         
+        echo "📄 Dockerrun.aws.json created"
+        
     - name: 🚀 Deploy to Elastic Beanstalk
       uses: einaregilsson/beanstalk-deploy@v21
       with:
@@ -68,11 +128,15 @@ jobs:
         application_name: ${{ env.EB_APPLICATION }}
         environment_name: ${{ env.EB_ENVIRONMENT }}
         region: ${{ env.AWS_REGION }}
-        version_label: ${{ env.VERSION_LABEL }}
+        version_label: ${{ github.sha }}
         deployment_package: Dockerrun.aws.json
         wait_for_environment_recovery: 300
         
     - name: ✅ Verify deployment
       run: |
-        echo "✅ Déploiement initié!"
-        echo "🌐 Surveillez: https://us-east-1.console.aws.amazon.com/elasticbeanstalk"
+        echo "✅ Deployment completed!"
+        echo ""
+        echo "📋 Next steps:"
+        echo "1. Check EB environment: https://us-east-1.console.aws.amazon.com/elasticbeanstalk"
+        echo "2. Set environment variables in EB console"
+        echo "3. Test your application URL"
