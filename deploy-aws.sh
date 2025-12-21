@@ -16,7 +16,7 @@ AWS_REGION="us-east-1"
 ECR_REPO="gestion-scolaire-backend"
 EB_ENV_NAME="gestion-scolaire-prod"
 CF_STACK="gestion-scolaire-network"
-GITHUB_REPO="https://github.com/VOTRE_USER/VOTRE_REPO.git"
+GITHUB_REPO="https://github.com/mhdgeek/Visit-card.git"
 
 # Couleurs pour les messages
 RED='\033[0;31m'
