@@ -412,7 +412,7 @@ echo -e "${GREEN}  DÉPLOIEMENT TERMINÉ AVEC SUCCÈS  ${NC}"
 echo -e "${GREEN}==================================${NC}"
 
 # Afficher les informations de déploiement
-APP_URL=$(eb status $EB_ENV_NAME --region $AWS_REGION --output json | grep -o '"CNAME":"[^"]*"' | cut -d'"' -f4)
+APP_URL=$(eb status $EB_ENV_NAME --region $AWS_REGION | grep "CNAME:" | awk '{print $2}')
 
 echo -e "\n${BLUE}📋 INFORMATIONS DE DÉPLOIEMENT:${NC}"
 echo "Application URL: http://$APP_URL"
